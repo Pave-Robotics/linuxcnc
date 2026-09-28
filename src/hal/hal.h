@@ -957,7 +957,7 @@ typedef struct {
  * There may only be one reader and one writer but this is not enforced
  */
 
-#define HAL_STREAM_MAX_PINS (21)
+#define HAL_STREAM_MAX_PINS (31)
 /** create and attach a stream */
 extern int hal_stream_create(hal_stream_t *stream, int comp, int key, unsigned depth, const char *typestring);
 /** detach and destroy an open stream */

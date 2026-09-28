@@ -2702,22 +2702,23 @@ class TclCommands(nf.TclCommands):
 
     # The next three don't have 'manual_ok' because that's done in jog_on /
     # jog_off
-    def jog_plus(event):
-        if key_pressed(event):
+    def jog_plus(event=None):
+        if event and key_pressed(event):
             return  # Ignore repeated press events
         a = ja_from_rbutton()
         speed = get_jog_speed(a)
         jog_on(a, speed)
 
-    def jog_minus(event):
-        if key_pressed(event):
+    def jog_minus(event=None):
+        if event and key_pressed(event):
             return  # Ignore repeated press events
         a = ja_from_rbutton()
         speed = get_jog_speed(a)
         jog_on(a, -speed)
 
-    def jog_stop(event):
-        key_released(event)
+    def jog_stop(event=None):
+        if event:
+            key_released(event)
         a = ja_from_rbutton()
         jog_off(a)
 
