@@ -145,8 +145,13 @@ STATIC inline double tpGetMaxTargetVel(TP_STRUCT const * const tp, TC_STRUCT con
  * Hopefully this makes changes easier to track as much of the churn will be on small functions.
  */
 
+/** Set by tpmod (tp_parms=blend_uvw): U/V/W on a line that also moves X/Y/Z
+ * are followers, interpolated through blends instead of blocking them. */
+int tp_blend_uvw = 0;
+
 /**
  * Returns true if there is motion along ABC or UVW axes, false otherwise.
+ * With tp_blend_uvw, a line moving X/Y/Z plus U/V/W counts as XYZ motion.
  */
 STATIC int tcRotaryMotionCheck(TC_STRUCT const * const tc) {
     switch (tc->motion_type) {
@@ -154,11 +159,13 @@ STATIC int tcRotaryMotionCheck(TC_STRUCT const * const tc) {
         case TC_RIGIDTAP:
             return false;
         case TC_LINEAR:
-            if (tc->coords.line.abc.tmag_zero && tc->coords.line.uvw.tmag_zero) {
-                return false;
-            } else {
+            if (!tc->coords.line.abc.tmag_zero) {
                 return true;
             }
+            if (tc->coords.line.uvw.tmag_zero) {
+                return false;
+            }
+            return !(tp_blend_uvw && !tc->coords.line.xyz.tmag_zero);
         case TC_CIRCULAR:
             if (tc->coords.circle.abc.tmag_zero && tc->coords.circle.uvw.tmag_zero) {
                 return false;
@@ -1115,7 +1122,7 @@ STATIC tp_err_t tpCreateLineArcBlend(TP_STRUCT * const tp, TC_STRUCT * const pre
     // Note that previous restrictions don't allow ABC or UVW movement, so the
     // end and start points should be identical
     blend_tc->coords.arc.abc = prev_tc->coords.line.abc.end;
-    blend_tc->coords.arc.uvw = prev_tc->coords.line.uvw.end;
+    pmCartLineInit(&blend_tc->coords.arc.uvw, &prev_tc->coords.line.uvw.end, &prev_tc->coords.line.uvw.end);
 
     //set the max velocity to v_plan, since we'll violate constraints otherwise.
     tpInitBlendArcFromPrev(tp, prev_tc, blend_tc, param.v_req,
@@ -1272,7 +1279,7 @@ STATIC tp_err_t tpCreateArcLineBlend(TP_STRUCT * const tp, TC_STRUCT * const pre
     // Note that previous restrictions don't allow ABC or UVW movement, so the
     // end and start points should be identical
     blend_tc->coords.arc.abc = tc->coords.line.abc.start;
-    blend_tc->coords.arc.uvw = tc->coords.line.uvw.start;
+    pmCartLineInit(&blend_tc->coords.arc.uvw, &tc->coords.line.uvw.start, &tc->coords.line.uvw.start);
 
     //set the max velocity to v_plan, since we'll violate constraints otherwise.
     tpInitBlendArcFromPrev(tp, prev_tc, blend_tc, param.v_req,
@@ -1439,7 +1446,7 @@ STATIC tp_err_t tpCreateArcArcBlend(TP_STRUCT * const tp, TC_STRUCT * const prev
     // Note that previous restrictions don't allow ABC or UVW movement, so the
     // end and start points should be identical
     blend_tc->coords.arc.abc = prev_tc->coords.circle.abc.end;
-    blend_tc->coords.arc.uvw = prev_tc->coords.circle.uvw.end;
+    pmCartLineInit(&blend_tc->coords.arc.uvw, &prev_tc->coords.circle.uvw.end, &prev_tc->coords.circle.uvw.end);
 
     //set the max velocity to v_plan, since we'll violate constraints otherwise.
     tpInitBlendArcFromPrev(tp, prev_tc, blend_tc, param.v_req,
@@ -1516,7 +1523,7 @@ STATIC tp_err_t tpCreateLineLineBlend(TP_STRUCT * const tp, TC_STRUCT * const pr
     // Note that previous restrictions don't allow ABC or UVW movement, so the
     // end and start points should be identical
     blend_tc->coords.arc.abc = prev_tc->coords.line.abc.end;
-    blend_tc->coords.arc.uvw = prev_tc->coords.line.uvw.end;
+    pmCartLineInit(&blend_tc->coords.arc.uvw, &prev_tc->coords.line.uvw.end, &prev_tc->coords.line.uvw.end);
 
     //set the max velocity to v_plan, since we'll violate constraints otherwise.
     tpInitBlendArcFromPrev(tp, prev_tc, blend_tc, param.v_req,
@@ -1529,6 +1536,7 @@ STATIC tp_err_t tpCreateLineLineBlend(TP_STRUCT * const tp, TC_STRUCT * const pr
     }
 
     int retval = TP_ERR_FAIL;
+    PmCartesian const uvw_prev_start = prev_tc->coords.line.uvw.start;
 
     //TODO refactor to pass consume to connect function
     if (param.consume) {
@@ -1542,10 +1550,14 @@ STATIC tp_err_t tpCreateLineLineBlend(TP_STRUCT * const tp, TC_STRUCT * const pr
         //Since the blend arc meets the end of the previous line, we only need
         //to "connect" to the next line
         retval = tcConnectBlendArc(NULL, tc, &points.arc_start, &points.arc_end);
+        // the arc replaces the whole previous line, so its U starts where that line's did
+        pmCartLineInit(&blend_tc->coords.arc.uvw, &uvw_prev_start, &tc->coords.line.uvw.start);
     } else {
         //TODO refactor connect function to stretch lines and check for bad stretching
         tp_debug_print("keeping previous line\n");
         retval = tcConnectBlendArc(prev_tc, tc, &points.arc_start, &points.arc_end);
+        pmCartLineInit(&blend_tc->coords.arc.uvw, &prev_tc->coords.line.uvw.end,
+                &tc->coords.line.uvw.start);
         blend_tc->atspeed=0;
     }
     return retval;

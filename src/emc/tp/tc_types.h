@@ -86,7 +86,7 @@ typedef struct {
 typedef struct {
     SphericalArc xyz;
     PmCartesian abc;
-    PmCartesian uvw;
+    PmCartLine uvw;     // U/V/W move along the arc (tp_blend_uvw); else zero-length
 } Arc9;
 
 typedef enum {

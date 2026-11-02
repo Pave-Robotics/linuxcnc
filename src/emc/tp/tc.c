@@ -442,7 +442,9 @@ int tcGetPosReal(TC_STRUCT const * const tc, int of_point, EmcPose * const pos)
                     progress,
                     &xyz);
             abc = tc->coords.arc.abc;
-            uvw = tc->coords.arc.uvw;
+            pmCartLinePoint(&tc->coords.arc.uvw,
+                    progress * tc->coords.arc.uvw.tmag / tc->target,
+                    &uvw);
             break;
     }
 
@@ -492,12 +494,21 @@ int tcConnectBlendArc(TC_STRUCT * const prev_tc, TC_STRUCT * const tc,
         PmCartesian const * const circ_start,
         PmCartesian const * const circ_end) {
 
-    /* Only shift XYZ for now*/
+    /* Shift XYZ; U/V/W (tp_blend_uvw) keep the same fraction of their line */
     if (prev_tc) {
         tp_debug_print("connect: keep prev_tc\n");
         //Have prev line, need to shorten it
+        double const len_before = prev_tc->coords.line.xyz.tmag;
         pmCartLineInit(&prev_tc->coords.line.xyz,
                 &prev_tc->coords.line.xyz.start, circ_start);
+        if (!prev_tc->coords.line.uvw.tmag_zero && len_before > 0.0) {
+            PmCartesian uvw_end;
+            pmCartLinePoint(&prev_tc->coords.line.uvw,
+                    prev_tc->coords.line.uvw.tmag * prev_tc->coords.line.xyz.tmag / len_before,
+                    &uvw_end);
+            pmCartLineInit(&prev_tc->coords.line.uvw,
+                    &prev_tc->coords.line.uvw.start, &uvw_end);
+        }
         tp_debug_print("Old target = %f\n", prev_tc->target);
         prev_tc->target = prev_tc->coords.line.xyz.tmag;
         tp_debug_print("Target = %f\n",prev_tc->target);
@@ -511,7 +522,15 @@ int tcConnectBlendArc(TC_STRUCT * const prev_tc, TC_STRUCT * const tc,
     }
 
     //Shorten next line
+    double const len_before = tc->coords.line.xyz.tmag;
     pmCartLineInit(&tc->coords.line.xyz, circ_end, &tc->coords.line.xyz.end);
+    if (!tc->coords.line.uvw.tmag_zero && len_before > 0.0) {
+        PmCartesian uvw_start;
+        pmCartLinePoint(&tc->coords.line.uvw,
+                tc->coords.line.uvw.tmag * (1.0 - tc->coords.line.xyz.tmag / len_before),
+                &uvw_start);
+        pmCartLineInit(&tc->coords.line.uvw, &uvw_start, &tc->coords.line.uvw.end);
+    }
 
     tp_info_print(" L2: old target = %f\n", tc->target);
     tc->target = tc->coords.line.xyz.tmag;
