@@ -1060,7 +1060,7 @@ typedef struct __hal_stream_t {
 } hal_stream_t;
 typedef hal_stream_t *hal_stream_ptr_t;
 
-#define HAL_STREAM_MAX_PINS (21)
+#define HAL_STREAM_MAX_PINS (31)
 /** create and attach a stream */
 int hal_stream_create(hal_stream_t *stream, int comp, int key, unsigned depth, const char *typestring);
 /** detach and destroy an open stream */
