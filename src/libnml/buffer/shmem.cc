@@ -36,7 +36,7 @@
 /* Common Definitions. */
 //#include "autokey.h"
 /* rw-rw-r-- permissions */
-#define MODE (0700)
+#define MODE (0666)
 
 static inline bool not_zero(double x)
 {
