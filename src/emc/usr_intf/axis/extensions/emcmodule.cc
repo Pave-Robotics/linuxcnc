@@ -238,7 +238,14 @@ static RCS_STATUS emcWaitCommandComplete(pyCommandChannel *s, double timeout) {
                 return stat->status;
            }
         }
-        esleep(fmin(timeout - (now - start), EMC_COMMAND_DELAY));
+        // Sleep without the GIL: every caller is a Python method holding
+        // it, and holding it here froze every other Python thread in the
+        // process for the whole wait (tens of ms per command). The NML
+        // reads above stay under the GIL, serialized as before.
+        double delay = fmin(timeout - (now - start), EMC_COMMAND_DELAY);
+        Py_BEGIN_ALLOW_THREADS
+        esleep(delay);
+        Py_END_ALLOW_THREADS
     } while (etime() - start < timeout);
     return RCS_STATUS::UNINITIALIZED;
 }
@@ -257,7 +264,10 @@ static int emcSendCommand(pyCommandChannel *s, RCS_CMD_MSG & cmd) {
            serial_diff >= 0) {
                 return 0;
            }
+        // See emcWaitCommandComplete: sleep without the GIL.
+        Py_BEGIN_ALLOW_THREADS
         esleep(EMC_COMMAND_DELAY);
+        Py_END_ALLOW_THREADS
     }
     return -1;
 }
